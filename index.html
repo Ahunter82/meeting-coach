@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -145,6 +145,7 @@ select{background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:v
 .micbar{
   flex-shrink:0;
   padding:16px;
+  padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));
   background:var(--bg);
   border-top:1px solid var(--b1);
   display:flex;gap:10px;align-items:center;
@@ -391,7 +392,11 @@ function startMic(){
     }
     updInterim(itr);
   };
-  try{rec.start();}catch(e){alert("Mic error: "+e.message);}
+  try{
+    var AC=window.AudioContext||window.webkitAudioContext;
+    if(AC){var ac=new AC(),buf=ac.createBuffer(1,1,22050),src=ac.createBufferSource();src.buffer=buf;src.connect(ac.destination);src.start(0);setTimeout(function(){ac.close();},200);}
+    rec.start();
+  }catch(e){alert("Mic error: "+e.message);}
 }
 function stopMic(){
   listening=false;
