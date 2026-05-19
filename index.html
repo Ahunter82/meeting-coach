@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B0F16">
+<title>Meeting Coach</title>
+
+<!-- Inline Manifest via JS (no separate file needed) -->
+<script>
+var manifest = {
+  name: "Meeting Coach",
+  short_name: "MeetCoach",
+  description: "AI meeting coach for difficult conversations",
+  start_url: "./",
+  display: "standalone",
+  orientation: "portrait",
+  background_color: "#0B0F16",
+  theme_color: "#0B0F16",
+  icons: [
+    { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230B0F16'/%3E%3Ccircle cx='256' cy='200' r='80' fill='none' stroke='%234CC9A0' stroke-width='28'/%3E%3Crect x='228' y='280' width='56' height='80' rx='10' fill='%234CC9A0'/%3E%3Cellipse cx='256' cy='380' rx='80' ry='16' fill='none' stroke='%234CC9A0' stroke-width='20'/%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
+  ]
+};
+var blob = new Blob([JSON.stringify(manifest)], {type:"application/json"});
+var murl = URL.createObjectURL(blob);
+var link = document.createElement("link");
+link.rel = "manifest"; link.href = murl;
+document.head.appendChild(link);
+</script>
+
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0B0F16;--s1:#111720;--s2:#18212E;
+  --b1:#1D2B3A;--b2:#243348;
+  --tx:#EEF2F7;--sub:#A8BDD0;--lbl:#5A7490;--dim:#2E4258;
+  --green:#4CC9A0;--amber:#E8AC1A;--red:#E85C5C;--blue:#4DA8DA;--purple:#C47ACC;
+}
+html,body{
+  height:100%;width:100%;
+  background:var(--bg);color:var(--tx);
+  font-family:'IBM Plex Sans',sans-serif;
+  font-size:16px;line-height:1.5;
+  overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
+}
+/* ── LAYOUT: 3 rows ── */
+.app{display:flex;flex-direction:column;height:100dvh;height:100vh;}
+
+/* ROW 1: Header */
+.header{
+  flex-shrink:0;
+  display:flex;align-items:center;gap:10px;
+  padding:12px 18px;
+  border-bottom:1px solid var(--b1);
+  background:var(--bg);
+}
+#dot{width:9px;height:9px;border-radius:50%;background:var(--dim);transition:background .3s,box-shadow .3s;flex-shrink:0}
+#dot.on{background:var(--green);box-shadow:0 0 8px rgba(76,201,160,.6)}
+#dot.busy{background:var(--amber);box-shadow:0 0 8px rgba(232,172,26,.6);animation:pulse .9s ease-in-out infinite}
+.htitle{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--sub)}
+#hSt{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--lbl)}
+.hright{margin-left:auto;display:flex;align-items:center;gap:8px}
+select{background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--sub);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 8px;cursor:pointer;outline:none}
+
+/* Mode badge in header */
+.modebadge{display:flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;padding:4px 8px}
+.modebadge .mblbl{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--green);letter-spacing:.06em}
+.modebadge .mbx{background:transparent;border:none;color:var(--lbl);cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;-webkit-tap-highlight-color:transparent}
+
+/* ROW 2: Analysis (main, scrollable) */
+.analysis{
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:0;
+  display:flex;flex-direction:column;
+}
+
+/* Idle / loading states */
+.aidle{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:32px;text-align:center}
+.aidle .hex{font-size:48px;opacity:.2}
+.aidle .lbl{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.aidle .hint{font-size:14px;color:var(--lbl);max-width:240px;line-height:1.6;margin-top:4px}
+.aload{flex:1;display:flex;align-items:center;justify-content:center;gap:12px;color:var(--amber);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.spin{width:8px;height:8px;border-radius:50%;background:var(--amber);animation:pulse .9s ease-in-out infinite}
+
+/* Result */
+.result{padding:16px;display:flex;flex-direction:column;gap:14px;animation:fi .3s ease}
+
+.top2{display:flex;gap:10px}
+.cstatus{flex:1;padding:12px 16px;border-radius:10px;border:1px solid}
+.crisk{min-width:130px;padding:12px 16px;border-radius:10px;background:var(--s2);border:1px solid var(--b2)}
+.clbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--lbl);margin-bottom:5px}
+.cval{font-size:17px;font-weight:600;line-height:1.2}
+.rrow{display:flex;align-items:center;gap:8px}
+.rdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+.calm{padding:12px 16px;border-radius:10px;background:rgba(76,201,160,.08);border:1px solid rgba(76,201,160,.2);color:#7DDFC0;font-size:16px;font-weight:500;font-style:italic;text-align:center}
+
+.glbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--lbl);margin-bottom:8px}
+.glist{display:flex;flex-direction:column;gap:8px}
+.gitem{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--s2);border-radius:10px;border-left:3px solid}
+.gnum{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--lbl);flex-shrink:0}
+.gtxt{font-size:18px;font-weight:600;color:#fff;line-height:1.2}
+
+.rlbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--lbl);margin-bottom:8px}
+.rbox{background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:16px;font-size:16px;line-height:1.6;color:#EEF2F7;font-style:italic}
+.btncopy{display:block;width:100%;margin-top:8px;background:transparent;border:1px solid var(--b2);border-radius:8px;color:var(--lbl);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:10px;cursor:pointer;transition:border-color .15s,color .15s;text-align:center}
+.btncopy:active{border-color:var(--blue);color:var(--blue)}
+
+/* ── MODE PICKER ── */
+.modepicker{flex:1;display:flex;flex-direction:column;padding:20px 16px 16px;gap:10px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.mptitle{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--lbl);margin-bottom:2px}
+.mpcard{display:flex;align-items:center;gap:14px;padding:16px;background:var(--s1);border:1px solid var(--b1);border-radius:12px;cursor:pointer;transition:border-color .15s,background .15s;-webkit-tap-highlight-color:transparent}
+.mpcard:active{border-color:var(--green);background:rgba(76,201,160,.07)}
+.mpicon{font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--green);flex-shrink:0;width:26px;text-align:center}
+.mpinfo{display:flex;flex-direction:column;gap:3px}
+.mplabel{font-size:16px;font-weight:600;color:var(--tx)}
+.mphint{font-size:12px;color:var(--lbl);line-height:1.4}
+
+/* ROW 3: Transcript strip */
+.transcript{
+  flex-shrink:0;
+  max-height:120px;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  background:var(--s1);
+  border-top:1px solid var(--b1);
+  padding:10px 16px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.tentry{display:flex;flex-direction:column;gap:1px;animation:fi .2s ease}
+.ttime{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--dim)}
+.ttext{font-size:14px;line-height:1.5;color:var(--sub)}
+.tinterim{font-size:14px;line-height:1.5;color:var(--lbl);font-style:italic}
+.tplaceholder{font-size:13px;color:var(--dim);text-align:center;padding:8px 0;font-family:'IBM Plex Mono',monospace;letter-spacing:.06em}
+
+/* ROW 4: MIC BUTTON */
+.micbar{
+  flex-shrink:0;
+  padding:16px;
+  background:var(--bg);
+  border-top:1px solid var(--b1);
+  display:flex;gap:10px;align-items:center;
+}
+.btnmic{
+  flex:1;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  background:var(--green);
+  border:none;border-radius:14px;
+  color:#0B0F16;
+  font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  padding:18px 24px;
+  cursor:pointer;
+  transition:background .15s,transform .1s,opacity .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+.btnmic:active{transform:scale(.97)}
+.btnmic.stop{background:rgba(232,92,92,.15);border:2px solid var(--red);color:var(--red)}
+.btnmic:disabled{opacity:.35;cursor:default}
+.btnhelp{background:rgba(232,172,26,.12);border:2px solid var(--amber);border-radius:14px;color:var(--amber);font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:18px 14px;cursor:pointer;transition:background .15s,transform .1s,opacity .2s;-webkit-tap-highlight-color:transparent;white-space:nowrap}
+.btnhelp:active{transform:scale(.97);background:rgba(232,172,26,.22)}
+.btnhelp:disabled{opacity:.25;cursor:default}
+.btnmic .icon{font-size:20px}
+.btnclear{background:transparent;border:1px solid var(--b2);border-radius:10px;color:var(--lbl);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:18px 14px;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+
+/* Manual input (collapsed by default, tap to expand) */
+.manualwrap{flex-shrink:0;background:var(--s1);border-top:1px solid var(--b1);display:none}
+.manualwrap.open{display:flex;gap:8px;padding:10px 14px}
+.manualwrap input{flex:1;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--tx);font-family:'IBM Plex Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none}
+.manualwrap input::placeholder{color:var(--dim)}
+.btnsend{background:var(--blue);border:none;border-radius:8px;color:#0B0F16;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;padding:10px 14px;cursor:pointer}
+
+/* Error */
+.errbox{margin:16px;padding:14px 16px;background:rgba(232,92,92,.1);border:1px solid rgba(232,92,92,.3);border-radius:10px;color:#F08080;font-size:14px;line-height:1.6}
+
+/* Wake lock indicator */
+.wakelock{width:6px;height:6px;border-radius:50%;background:var(--dim);flex-shrink:0;transition:background .3s}
+.wakelock.on{background:var(--amber)}
+
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div id="dot"></div>
+    <span class="htitle">Meeting Coach</span>
+    <span id="hSt">Modus w&auml;hlen</span>
+    <div class="hright">
+      <div class="wakelock" id="wakeDot" title="Screen stays on while recording"></div>
+      <select id="langSel">
+        <option value="de-DE">DE</option>
+        <option value="en-US">EN</option>
+        <option value="en-GB">EN-GB</option>
+      </select>
+      <div class="modebadge" id="modeBadge" style="display:none">
+        <span class="mblbl" id="modeLabel"></span>
+        <button class="mbx" onclick="resetMode()" title="Modus wechseln">&#215;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYSIS -->
+  <div class="analysis" id="analysis"></div>
+
+  <!-- TRANSCRIPT STRIP -->
+  <div class="transcript" id="transcript">
+    <div class="tplaceholder" id="tPlaceholder">transcript appears here</div>
+  </div>
+
+  <!-- MANUAL INPUT (hidden by default) -->
+  <div class="manualwrap" id="manualWrap">
+    <input type="text" id="manualInput" placeholder="Type a statement&hellip;">
+    <button class="btnsend" onclick="sendManual()">&#8599;</button>
+  </div>
+
+  <!-- MIC BAR -->
+  <div class="micbar">
+    <button class="btnmic" id="btnMic" onclick="toggleMic()" disabled>
+      <span class="icon">&#127897;</span>
+      <span id="micLbl">Start Listening</span>
+    </button>
+    <button class="btnhelp" id="btnHelp" onclick="analyzeNow()" disabled title="Sofort analysieren">Hilfe</button>
+    <button class="btnclear" onclick="toggleManual()" title="Type manually">&#9112;</button>
+    <button class="btnclear" onclick="clearAll()" title="Clear">&#215;</button>
+  </div>
+
+</div><!-- .app -->
+
+<script>
+"use strict";
+var MURL  = "https://api.mistral.ai/v1/chat/completions";
+var MKEY  = "zFmxQZTXjmPTSzO60yAbdeohCB19bnBp";
+var MODEL = "mistral-small-latest";
+
+/* ── MEETING MODES ── */
+var MODES = {
+  escalation: {
+    label: "Eskalation",
+    fullLabel: "Eskalationsmeeting",
+    icon: "&#9888;",
+    hint: "Hohe Spannung, Konflikte, Emotionen",
+    sysp: "You are an AI Meeting Coach for an escalation meeting. Tensions are high, emotions are elevated, relationships are at risk. Prioritize detecting: escalation, blame, emotional, political patterns. Watch for blame-shifting, personal attacks, ultimatums, passive-aggressive language, loss of control. Your suggested_response must be de-escalating, calm, factual, never defensive. LANGUAGE RULE: Write guidance[] and calm_note in German (short imperative commands). Write suggested_response in English (ready to say aloud in the meeting). Return ONLY valid JSON, no markdown, no preamble. Required keys: category (one of: strategic,technical,political,emotional,escalation,blame,resource,risk,offtopic,decision,management,neutral), risk_level (one of: low,medium,high,critical), risk_description (max 6 words, English), guidance (array of 2-3 German strings, max 5 words each), suggested_response (1-2 English sentences, calm and professional), calm_note (short German phrase or null, only for emotional/escalation/blame)."
+  },
+  steering: {
+    label: "Steering",
+    fullLabel: "Steering Committee",
+    icon: "&#9670;",
+    hint: "Entscheider, Strategie, Budgets",
+    sysp: "You are an AI Meeting Coach for a Steering Committee meeting with executives and decision-makers. Prioritize detecting: strategic, decision, risk, resource, management patterns. Watch for scope changes, budget concerns, strategic misalignment, decision avoidance, departmental politics. Your suggested_response must be concise, data-oriented, executive-level, and action-focused. LANGUAGE RULE: Write guidance[] and calm_note in German (short imperative commands). Write suggested_response in English (ready to say aloud in the meeting). Return ONLY valid JSON, no markdown, no preamble. Required keys: category (one of: strategic,technical,political,emotional,escalation,blame,resource,risk,offtopic,decision,management,neutral), risk_level (one of: low,medium,high,critical), risk_description (max 6 words, English), guidance (array of 2-3 German strings, max 5 words each), suggested_response (1-2 English sentences, concise and executive-level), calm_note (short German phrase or null, only for emotional/escalation/blame)."
+  },
+  customer: {
+    label: "Kunde",
+    fullLabel: "Kundengespr\u00e4ch",
+    icon: "&#9675;",
+    hint: "Externer Kunde, Erwartungen, Beziehung",
+    sysp: "You are an AI Meeting Coach for a customer meeting with an external client. Prioritize detecting: political, emotional, resource, risk, escalation patterns. Watch for unmet expectations, scope creep requests, dissatisfaction signals, relationship threats, budget pressure. Your suggested_response must be service-oriented, relationship-preserving, professional, and never defensive. LANGUAGE RULE: Write guidance[] and calm_note in German (short imperative commands). Write suggested_response in English (ready to say aloud in the meeting). Return ONLY valid JSON, no markdown, no preamble. Required keys: category (one of: strategic,technical,political,emotional,escalation,blame,resource,risk,offtopic,decision,management,neutral), risk_level (one of: low,medium,high,critical), risk_description (max 6 words, English), guidance (array of 2-3 German strings, max 5 words each), suggested_response (1-2 English sentences, service-oriented and warm), calm_note (short German phrase or null, only for emotional/escalation/blame)."
+  },
+  employee: {
+    label: "Mitarbeiter",
+    fullLabel: "Mitarbeitergespr\u00e4ch",
+    icon: "&#9679;",
+    hint: "1:1 oder Team, F\u00fchrung, Empathie",
+    sysp: "You are an AI Meeting Coach for a 1-on-1 or team meeting with employees. The user is a manager or team lead. Prioritize detecting: emotional, management, blame, political patterns. Watch for frustration signals, blame toward management, disengagement language, team conflicts, HR-sensitive statements. Your suggested_response must be empathetic, constructive, solution-focused, and never authoritarian. LANGUAGE RULE: Write guidance[] and calm_note in German (short imperative commands). Write suggested_response in English (ready to say aloud in the meeting). Return ONLY valid JSON, no markdown, no preamble. Required keys: category (one of: strategic,technical,political,emotional,escalation,blame,resource,risk,offtopic,decision,management,neutral), risk_level (one of: low,medium,high,critical), risk_description (max 6 words, English), guidance (array of 2-3 German strings, max 5 words each), suggested_response (1-2 English sentences, empathetic and constructive), calm_note (short German phrase or null, only for emotional/escalation/blame)."
+  },
+  negotiation: {
+    label: "Verhandlung",
+    fullLabel: "Verhandlung",
+    icon: "&#8646;",
+    hint: "Interessen, Positionen, Druck",
+    sysp: "You are an AI Meeting Coach for a negotiation meeting. The user is negotiating with internal or external parties. Prioritize detecting: strategic, resource, risk, decision, political patterns. Watch for anchoring moves, pressure tactics, false urgency, positional bargaining, concession signals, BATNA probing. Your suggested_response must be firm yet collaborative, interest-based rather than positional, and never reactive. LANGUAGE RULE: Write guidance[] and calm_note in German (short imperative commands). Write suggested_response in English (ready to say aloud in the meeting). Return ONLY valid JSON, no markdown, no preamble. Required keys: category (one of: strategic,technical,political,emotional,escalation,blame,resource,risk,offtopic,decision,management,neutral), risk_level (one of: low,medium,high,critical), risk_description (max 6 words, English), guidance (array of 2-3 German strings, max 5 words each), suggested_response (1-2 English sentences, firm but collaborative), calm_note (short German phrase or null, only for emotional/escalation/blame)."
+  }
+};
+
+var CATS={
+  strategic:{label:"Strategic",color:"#E8AC1A",bg:"rgba(232,172,26,0.12)",border:"rgba(232,172,26,0.35)"},
+  technical:{label:"Technical",color:"#4DA8DA",bg:"rgba(77,168,218,0.12)",border:"rgba(77,168,218,0.35)"},
+  political:{label:"Political",color:"#C47ACC",bg:"rgba(196,122,204,0.12)",border:"rgba(196,122,204,0.35)"},
+  emotional:{label:"Emotional",color:"#E85C5C",bg:"rgba(232,92,92,0.12)",border:"rgba(232,92,92,0.35)"},
+  escalation:{label:"Escalation",color:"#E85C5C",bg:"rgba(232,92,92,0.15)",border:"rgba(232,92,92,0.45)"},
+  blame:{label:"Blame",color:"#E85C5C",bg:"rgba(232,92,92,0.12)",border:"rgba(232,92,92,0.35)"},
+  resource:{label:"Resource",color:"#E8AC1A",bg:"rgba(232,172,26,0.12)",border:"rgba(232,172,26,0.35)"},
+  risk:{label:"Risk",color:"#E8AC1A",bg:"rgba(232,172,26,0.12)",border:"rgba(232,172,26,0.35)"},
+  offtopic:{label:"Off-topic",color:"#8899AA",bg:"rgba(136,153,170,0.12)",border:"rgba(136,153,170,0.35)"},
+  decision:{label:"Decision",color:"#4DA8DA",bg:"rgba(77,168,218,0.12)",border:"rgba(77,168,218,0.35)"},
+  management:{label:"Management",color:"#C47ACC",bg:"rgba(196,122,204,0.12)",border:"rgba(196,122,204,0.35)"},
+  neutral:{label:"Neutral",color:"#4CC9A0",bg:"rgba(76,201,160,0.12)",border:"rgba(76,201,160,0.35)"}
+};
+var RISKS={low:{color:"#4CC9A0"},medium:{color:"#E8AC1A"},high:{color:"#E85C5C"},critical:{color:"#E85C5C"}};
+
+var rec=null,listening=false,analyzing=false,timer=null,buf="",interim=null,wakeLock=null;
+var currentMode=null;
+
+/* ── MODE SELECTION ── */
+function showModePicker(){
+  var keys=["escalation","steering","customer","employee","negotiation"];
+  var cards="";
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],m=MODES[k];
+    cards+='<div class="mpcard" onclick="selectMode(\''+k+'\')">'
+      +'<div class="mpicon">'+m.icon+'</div>'
+      +'<div class="mpinfo">'
+      +'<div class="mplabel">'+esc(m.fullLabel)+'</div>'
+      +'<div class="mphint">'+esc(m.hint)+'</div>'
+      +'</div></div>';
+  }
+  document.getElementById("analysis").innerHTML=
+    '<div class="modepicker">'
+    +'<div class="mptitle">Meeting-Typ w&auml;hlen</div>'
+    +cards
+    +'</div>';
+}
+
+function selectMode(key){
+  currentMode=key;
+  var m=MODES[key];
+  document.getElementById("modeLabel").textContent=m.label;
+  document.getElementById("modeBadge").style.display="flex";
+  document.getElementById("btnMic").disabled=false;
+  document.getElementById("btnHelp").disabled=false;
+  st("Bereit");
+  document.getElementById("analysis").innerHTML=
+    '<div class="aidle">'
+    +'<div class="hex">&#127897;</div>'
+    +'<div class="lbl">'+esc(m.fullLabel)+'</div>'
+    +'<div class="hint">Mikrofon starten und sprechen. Der Coach analysiert automatisch.</div>'
+    +'</div>';
+}
+
+function resetMode(){
+  if(listening)return;
+  currentMode=null;
+  document.getElementById("modeBadge").style.display="none";
+  document.getElementById("btnMic").disabled=true;
+  document.getElementById("btnHelp").disabled=true;
+  st("Modus w\u00e4hlen");
+  showModePicker();
+}
+
+/* ── WAKE LOCK ── keep screen on while recording */
+async function requestWakeLock(){
+  try{
+    if("wakeLock" in navigator){
+      wakeLock=await navigator.wakeLock.request("screen");
+      document.getElementById("wakeDot").className="wakelock on";
+      wakeLock.addEventListener("release",function(){
+        document.getElementById("wakeDot").className="wakelock";
+      });
+    }
+  }catch(e){}
+}
+function releaseWakeLock(){
+  if(wakeLock){try{wakeLock.release();}catch(e){}wakeLock=null;}
+  document.getElementById("wakeDot").className="wakelock";
+}
+
+/* ── MIC ── */
+function toggleMic(){if(listening){stopMic();}else{startMic();}}
+function startMic(){
+  if(!currentMode)return;
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){alert("Speech recognition requires Chrome on Android.");return;}
+  rec=new SR();rec.continuous=true;rec.interimResults=true;
+  rec.lang=document.getElementById("langSel").value;
+  rec.onstart=function(){
+    listening=true;dot("on");st("Listening\u2026");micbtn(true);
+    requestWakeLock();
+  };
+  rec.onend=function(){if(listening){try{rec.start();}catch(e){}}};
+  rec.onerror=function(e){
+    if(e.error==="not-allowed"){alert("Microphone denied. Allow it in Chrome settings.");stopMic();}
+  };
+  rec.onresult=function(ev){
+    var itr="";
+    for(var i=ev.resultIndex;i<ev.results.length;i++){
+      var r=ev.results[i];
+      if(r.isFinal){var t=r[0].transcript.trim();if(t){addEntry(t);schedule(t);}}
+      else{itr+=r[0].transcript;}
+    }
+    updInterim(itr);
+  };
+  try{rec.start();}catch(e){alert("Mic error: "+e.message);}
+}
+function stopMic(){
+  listening=false;
+  if(rec){try{rec.stop();}catch(e){}}
+  releaseWakeLock();
+  dot("off");st("Gestoppt");micbtn(false);clrInterim();
+}
+
+/* ── TRANSCRIPT ── */
+function addEntry(text){
+  clrInterim();
+  var a=document.getElementById("transcript");
+  var ph=document.getElementById("tPlaceholder");if(ph)ph.remove();
+  var now=new Date(),ts=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  var el=document.createElement("div");el.className="tentry";
+  el.innerHTML='<div class="ttime">'+esc(ts)+'</div><div class="ttext">'+esc(text)+'</div>';
+  a.appendChild(el);a.scrollTop=a.scrollHeight;
+}
+function updInterim(text){
+  var a=document.getElementById("transcript");
+  if(!text){clrInterim();return;}
+  if(!interim){interim=document.createElement("div");interim.className="tinterim";a.appendChild(interim);}
+  interim.textContent=text;a.scrollTop=a.scrollHeight;
+}
+function clrInterim(){if(interim){interim.remove();interim=null;}}
+function clearAll(){
+  document.getElementById("transcript").innerHTML='<div class="tplaceholder" id="tPlaceholder">transcript appears here</div>';
+  interim=null;buf="";clearTimeout(timer);
+  if(currentMode){
+    var m=MODES[currentMode];
+    document.getElementById("analysis").innerHTML=
+      '<div class="aidle">'
+      +'<div class="hex">&#127897;</div>'
+      +'<div class="lbl">'+esc(m.fullLabel)+'</div>'
+      +'<div class="hint">Mikrofon starten und sprechen. Der Coach analysiert automatisch.</div>'
+      +'</div>';
+  }else{
+    showModePicker();
+  }
+}
+
+/* ── HELP ON DEMAND ── */
+function analyzeNow(){
+  if(!currentMode)return;
+  clearTimeout(timer);
+  var text=buf.trim();
+  buf="";
+  if(!text){
+    var entries=document.querySelectorAll("#transcript .ttext");
+    if(entries.length>0)text=entries[entries.length-1].textContent.trim();
+  }
+  if(text)analyze(text);
+}
+
+/* ── ANALYSIS ── */
+function schedule(text){
+  buf+=" "+text;clearTimeout(timer);
+  timer=setTimeout(function(){var b=buf.trim();buf="";if(b.length>=10)analyze(b);},1800);
+}
+function sendManual(){
+  var inp=document.getElementById("manualInput"),t=inp.value.trim();
+  if(!t||!currentMode)return;inp.value="";addEntry(t);analyze(t);
+  document.getElementById("manualWrap").className="manualwrap";
+}
+function toggleManual(){
+  var w=document.getElementById("manualWrap");
+  w.className=w.className.indexOf("open")>=0?"manualwrap":"manualwrap open";
+  if(w.className.indexOf("open")>=0)setTimeout(function(){document.getElementById("manualInput").focus();},100);
+}
+function analyze(text){
+  if(analyzing||!currentMode)return;analyzing=true;dot("busy");st("Analyzing\u2026");
+  document.getElementById("analysis").innerHTML='<div class="aload"><div class="spin"></div>Analyzing\u2026</div>';
+  fetch(MURL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+MKEY},
+    body:JSON.stringify({model:MODEL,temperature:0.2,max_tokens:600,response_format:{type:"json_object"},
+      messages:[{role:"system",content:MODES[currentMode].sysp},{role:"user",content:'Meeting statement: "'+text+'"'}]})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.error){showErr("API error: "+(d.error.message||"unknown"));return;}
+    var raw=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||"";
+    raw=raw.replace(/^```json\s*/i,"").replace(/```\s*$/,"").trim();
+    if(raw.charAt(0)!=="{"){var m=raw.match(/\{[\s\S]*\}/);if(m)raw=m[0];}
+    var res;try{res=JSON.parse(raw);}catch(e){showErr("Parse error: "+e.message);return;}
+    render(res);
+  })
+  .catch(function(e){showErr("Network error: "+e.message);})
+  .finally(function(){analyzing=false;dot(listening?"on":"off");st(listening?"Listening\u2026":"Gestoppt");});
+}
+
+/* ── RENDER ── */
+function render(r){
+  var cat=CATS[r.category]||CATS.neutral,risk=RISKS[r.risk_level]||RISKS.low;
+  var gh="",g=r.guidance||[];
+  for(var i=0;i<g.length;i++)gh+='<div class="gitem" style="border-left-color:'+cat.color+'"><span class="gnum">0'+(i+1)+'</span><span class="gtxt">'+esc(g[i])+'</span></div>';
+  var ch=r.calm_note?'<div class="calm">'+esc(r.calm_note)+'</div>':"";
+  var rs='background:'+risk.color+';box-shadow:0 0 6px '+risk.color+'44';
+  document.getElementById("analysis").innerHTML=
+    '<div class="result">'
+    +'<div class="top2">'
+    +'<div class="cstatus" style="background:'+cat.bg+';border-color:'+cat.border+'"><div class="clbl">Status</div><div class="cval" style="color:'+cat.color+'">'+cat.label+'</div></div>'
+    +'<div class="crisk"><div class="clbl">Risk</div><div class="rrow"><div class="rdot" style="'+rs+'"></div><div class="cval" style="color:'+risk.color+'">'+esc(r.risk_description||"")+'</div></div></div>'
+    +'</div>'
+    +ch
+    +'<div><div class="glbl">Guidance</div><div class="glist">'+gh+'</div></div>'
+    +'<div><div class="rlbl">Say this</div><div class="rbox" id="sugResp">\u201c'+esc(r.suggested_response||"")+'\u201d</div>'
+    +'<button class="btncopy" onclick="cpResp(this)">Copy response</button></div>'
+    +'</div>';
+}
+function showErr(m){document.getElementById("analysis").innerHTML='<div class="errbox">'+esc(m)+'</div>';}
+
+/* ── HELPERS ── */
+function dot(s){var d=document.getElementById("dot");d.className=s==="on"?"on":s==="busy"?"busy":"";}
+function st(t){document.getElementById("hSt").textContent=t;}
+function micbtn(a){
+  document.getElementById("btnMic").className="btnmic"+(a?" stop":"");
+  document.getElementById("micLbl").textContent=a?"Stop Listening":"Start Listening";
+}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function cpResp(btn){
+  var el=document.getElementById("sugResp");if(!el)return;
+  var t=el.textContent.replace(/[\u201c\u201d]/g,"").trim();
+  navigator.clipboard.writeText(t).catch(function(){});
+  btn.textContent="Copied!";setTimeout(function(){btn.textContent="Copy response";},2000);
+}
+
+document.getElementById("langSel").addEventListener("change",function(){
+  if(listening){listening=false;if(rec){try{rec.stop();}catch(e){}}setTimeout(startMic,300);}
+});
+document.getElementById("manualInput").addEventListener("keydown",function(e){if(e.key==="Enter")sendManual();});
+
+/* Re-acquire wake lock if page becomes visible again */
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible"&&listening){requestWakeLock();}
+});
+
+/* Register service worker for PWA installability */
+if("serviceWorker" in navigator){
+  var swCode='self.addEventListener("install",function(e){self.skipWaiting();});self.addEventListener("fetch",function(e){e.respondWith(fetch(e.request).catch(function(){return new Response("Offline",{status:503});}));});';
+  var swBlob=new Blob([swCode],{type:"application/javascript"});
+  var swUrl=URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swUrl,{scope:"./"}).catch(function(){});
+}
+
+/* Init: show mode picker */
+showModePicker();
+</script>
+</body>
+</html>
