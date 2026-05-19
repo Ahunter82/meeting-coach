@@ -145,7 +145,7 @@ select{background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:v
 .micbar{
   flex-shrink:0;
   padding:16px;
-  padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+  padding-bottom:max(36px, calc(16px + env(safe-area-inset-bottom, 0px)));
   background:var(--bg);
   border-top:1px solid var(--b1);
   display:flex;gap:10px;align-items:center;
